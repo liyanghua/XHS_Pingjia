@@ -12,6 +12,10 @@
 | `xhs_mapping.py` | API `dict` ↔ `SearchPage` / `CommentPage` / `RawReviewEvent` / 窄表 `normalize_post` |
 | `xiaohongshu.py` | `XHSAdapter`：注入 `XiaoHongShuClient`，缓存 `note_id → (xsec_token, xsec_source)` |
 | `xhs_demo.py` | 真实环境验收脚本（浏览器 + 登录 + 搜索 + 评论） |
+| `review_intel/jobs/xhs_capture.py` | **仅落盘**：`manifest.json`、`raw/search/page_001.json`、`raw/events.jsonl`（不落 SQLite） |
+| `review_intel/jobs/ingest_capture.py` | **第二阶段**：读 capture 目录 → 归一化 + 清洗 → `REVIEW_INTEL_API_DATA/{job_id}/store.db` |
+
+两阶段目录约定、环境变量与幂等说明见 **[docs/capture_ingest_layout.md](../../docs/capture_ingest_layout.md)**；子系统总览见 [README_review_intel.md](../../README_review_intel.md)。
 
 ## 运行 Demo（真实请求）
 
@@ -21,7 +25,16 @@
 python -m review_intel.adapters.xhs_demo --keyword 防晒 --max-notes 2 --max-comments 3
 ```
 
-首次需完成小红书 Web 登录（与运行主爬虫一致）。
+**抓取与入库解耦**（先落盘再 ingest，见 `docs/capture_ingest_layout.md`）：
+
+```bash
+# 可选：export REVIEW_INTEL_CAPTURE_ROOT=~/review_intel_capture
+python -m review_intel.jobs.xhs_capture --keyword 防晒 --job-id job-xhs-001 --max-notes 2 --max-comments 3
+# 可选：export REVIEW_INTEL_API_DATA=~/review_intel_data
+python -m review_intel.jobs.ingest_capture --job-id job-xhs-001
+```
+
+首次需完成小红书 Web 登录（与运行主爬虫一致）。`ingest_capture` 仅读本地文件，不需要浏览器。
 
 ## CDP 与浏览器数据目录
 

@@ -22,6 +22,7 @@
 |------|------|
 | [docs/first_round_design.md](docs/first_round_design.md) | 目标、范围、模块、限制 |
 | [review_intel/ROUND1_CHECKLIST.md](review_intel/ROUND1_CHECKLIST.md) | 第一轮清单 |
+| [docs/capture_ingest_layout.md](docs/capture_ingest_layout.md) | **抓取与落库解耦**：`REVIEW_INTEL_CAPTURE_ROOT` 目录约定、`manifest` + `events.jsonl`、与 `ingest` 两阶段流水线 |
 
 ## 常用命令（Makefile）
 
@@ -33,7 +34,16 @@ make review-intel-api                # FastAPI，默认 http://127.0.0.1:8090
 make review-intel-demo               # Dummy 采集闭环摘要
 make review-intel-keyword-pipeline   # 关键词 → Runner → SQLite（Dummy）
 make review-intel-xhs-demo           # 小红书真实验收（需登录，见 adapters/README_XHS.md）
+make review-intel-xhs-capture        # 小红书：仅落盘 capture（manifest + raw/events.jsonl），不写库
+make review-intel-ingest-capture JOB_ID=<job_id>   # 从 capture 目录 ingest → REVIEW_INTEL_API_DATA/<job_id>/store.db
 ```
+
+环境变量（可选，未设置时使用仓库工作目录下的默认路径，见 [`review_intel/jobs/capture_io.py`](review_intel/jobs/capture_io.py)）：
+
+- **`REVIEW_INTEL_CAPTURE_ROOT`**：抓取输出根目录（默认 `./review_intel_capture/`）。
+- **`REVIEW_INTEL_API_DATA`**：API / ingest 使用的数据根目录（默认 `./review_intel_data/`，与 FastAPI 一致）。
+
+本地抓取目录通常含 Cookie/原始 JSON，已在根目录 [`.gitignore`](.gitignore) 中忽略 `review_intel_capture/` 与 `review_intel_data/`。
 
 等价命令示例：
 
@@ -42,6 +52,8 @@ python -m pytest review_intel/tests/ -q
 python -m uvicorn review_intel.api.app:app --reload --host 127.0.0.1 --port 8090
 python -m review_intel.jobs.keyword_pipeline_demo --keyword "防晒 搓泥"
 python -m review_intel.adapters.xhs_demo --keyword 防晒 --max-notes 2 --max-comments 3
+python -m review_intel.jobs.xhs_capture --keyword 防晒 --job-id job-xhs-001
+python -m review_intel.jobs.ingest_capture --job-id job-xhs-001
 ```
 
 ## 测试与「该跑哪个」

@@ -179,3 +179,7 @@ agent_zone
 debug_tools
 
 database/*.db
+
+# review_intel：抓取落盘原始 JSON（可能含 token）；默认目录见 review_intel/jobs/capture_io.py
+/review_intel_capture/
+/review_intel_data/
