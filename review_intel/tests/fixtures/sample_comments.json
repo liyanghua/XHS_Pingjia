@@ -1,0 +1,35 @@
+{
+  "version": "1",
+  "description": "第一轮：人工可读的评论样例，用于清洗与 schema 测试",
+  "snippets": [
+    {
+      "id": "snip_empty",
+      "review_text": "",
+      "note": "应被过滤：空"
+    },
+    {
+      "id": "snip_short",
+      "review_text": "好",
+      "note": "应被过滤：过短"
+    },
+    {
+      "id": "snip_ok",
+      "review_text": "这件防晒衣闷热不透气，穿久了会搓泥，但防晒效果还行。",
+      "note": "保留：长度与具体描述"
+    },
+    {
+      "id": "snip_emoji_only",
+      "review_text": "👍👍👍",
+      "note": "应被过滤：纯表情"
+    },
+    {
+      "id": "snip_ad",
+      "review_text": "加我微信了解详情",
+      "note": "应被过滤：广告词"
+    }
+  ],
+  "raw_event_overrides": {
+    "comment_id": "fixture-comment-001",
+    "parent_id": "fixture-post-001"
+  }
+}
