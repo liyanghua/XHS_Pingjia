@@ -9,7 +9,9 @@
 from __future__ import annotations
 
 import re
-from typing import Sequence
+from typing import FrozenSet, Sequence
+
+from review_intel.cleaners.filters import hits_high_value_short_term
 
 _DEFAULT_ATTRIBUTE_WORDS: tuple[str, ...] = (
     "颜色",
@@ -27,15 +29,23 @@ _DEFAULT_ATTRIBUTE_WORDS: tuple[str, ...] = (
     "肤感",
 )
 
+# 短评命中高价值痛点词时，总分不低于该下限（避免长度项把有效短评压得过低）
+QUALITY_FLOOR_SHORT_HIT: float = 0.45
+
 
 def compute_quality_score(
     text: str,
     *,
     attribute_words: Sequence[str] | None = None,
+    high_value_short_terms: FrozenSet[str] | None = None,
+    short_text_max_len: int = 12,
 ) -> float:
     """综合长度、具体性（数字/量纲）、属性词命中，输出 0~1。
 
     权重：长度 35%，具体描述 35%，属性词 30%。
+
+    当正文长度不超过 ``short_text_max_len`` 且命中 ``high_value_short_terms`` 中任一词时，
+    将分数下限抬升至 :data:`QUALITY_FLOOR_SHORT_HIT`，以缓解「高价值短评」被长度项误伤。
     """
     t = text.strip()
     if not t:
@@ -54,4 +64,9 @@ def compute_quality_score(
     attr_component = min(1.0, attr_hits / 3.0)
 
     score = 0.35 * length_component + 0.35 * concrete_component + 0.30 * attr_component
+
+    hv = high_value_short_terms if high_value_short_terms is not None else frozenset()
+    if hv and len(t) <= short_text_max_len and hits_high_value_short_term(t, hv):
+        score = max(score, QUALITY_FLOOR_SHORT_HIT)
+
     return round(max(0.0, min(1.0, score)), 4)

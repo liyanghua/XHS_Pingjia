@@ -23,6 +23,7 @@
 | [docs/first_round_design.md](docs/first_round_design.md) | 目标、范围、模块、限制 |
 | [review_intel/ROUND1_CHECKLIST.md](review_intel/ROUND1_CHECKLIST.md) | 第一轮清单 |
 | [docs/capture_ingest_layout.md](docs/capture_ingest_layout.md) | **抓取与落库解耦**：`REVIEW_INTEL_CAPTURE_ROOT` 目录约定、`manifest` + `events.jsonl`、与 `ingest` 两阶段流水线 |
+| [docs/runner_collection_limits.md](docs/runner_collection_limits.md) | **`CollectionRunLimits`**：搜索/帖子/评论分页与 `ReviewCollectionRunner` 验收摘要 |
 
 ## 常用命令（Makefile）
 
@@ -36,7 +37,18 @@ make review-intel-keyword-pipeline   # 关键词 → Runner → SQLite（Dummy�
 make review-intel-xhs-demo           # 小红书真实验收（需登录，见 adapters/README_XHS.md）
 make review-intel-xhs-capture        # 小红书：仅落盘 capture（manifest + raw/events.jsonl），不写库
 make review-intel-ingest-capture JOB_ID=<job_id>   # 从 capture 目录 ingest → REVIEW_INTEL_API_DATA/<job_id>/store.db
+make review-intel-runner-xhs-acceptance            # 小红书 + Runner + SQLite 小范围验收（需登录，见 runner_collection_limits.md）
+make review-intel-xhs-acceptance-report            # 第一轮真实平台验收：JSON + Markdown 报告（见下）
+make clean-data                                    # 清空 review_intel 默认本地数据目录（见下）
 ```
+
+**清空本地历史数据**（便于验证「新抓取」与 `stored_*` 写库计数）：
+
+```bash
+make clean-data
+```
+
+默认删除仓库根目录下的 `review_intel_data/` 与 `review_intel_capture/`。清空后再跑验收，`stored_raw_count` / `stored_normalized_count` 会反映本次 `INSERT`（而非幂等跳过）。可覆盖变量：`make clean-data REVIEW_INTEL_DATA_DIR=/path/to/data REVIEW_INTEL_CAPTURE_DIR=/path/to/capture`。若仅通过环境变量 `REVIEW_INTEL_API_DATA` / `REVIEW_INTEL_CAPTURE_ROOT` 指到**仓库外**路径，请自行删除对应目录。
 
 环境变量（可选，未设置时使用仓库工作目录下的默认路径，见 [`review_intel/jobs/capture_io.py`](review_intel/jobs/capture_io.py)）：
 
@@ -54,7 +66,18 @@ python -m review_intel.jobs.keyword_pipeline_demo --keyword "防晒 搓泥"
 python -m review_intel.adapters.xhs_demo --keyword 防晒 --max-notes 2 --max-comments 3
 python -m review_intel.jobs.xhs_capture --keyword 防晒 --job-id job-xhs-001
 python -m review_intel.jobs.ingest_capture --job-id job-xhs-001
+python -m review_intel.jobs.runner_acceptance_demo --db-path ./review_intel_data/xhs_acceptance/store.db
+python -m review_intel.jobs.run_xhs_acceptance --db-path ./review_intel_data/xhs_acceptance/store.db --output-dir ./review_intel_data/xhs_acceptance/last_run
+# 或：python scripts/run_xhs_review_acceptance.py（同上入口）
 ```
+
+**第一轮架构验收产出**（`run_xhs_acceptance` / `make review-intel-xhs-acceptance-report`）：
+
+- `acceptance_report.json`：结构化摘要（job、计数、字段覆盖率、样例评论、检查清单）。
+- `acceptance_summary.md`：可读的通过/待查项与问题线索。
+- SQLite：`--db-path` 指向的 `store.db`（raw + normalized 与 Runner 一致）。
+
+前置条件与 `runner_acceptance_demo` 相同（已登录小红书 Web、网络可达）；详见 [`review_intel/adapters/README_XHS.md`](review_intel/adapters/README_XHS.md)。
 
 ## 测试与「该跑哪个」
 

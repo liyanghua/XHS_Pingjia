@@ -14,7 +14,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Protocol, runtime_checkable
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 logger = logging.getLogger(__name__)
 
@@ -41,16 +41,41 @@ class JobCheckpoint(BaseModel):
     stage: CheckpointStage = Field(..., description="当前阶段")
     cursor: str | None = Field(
         default=None,
-        description="当前阶段分页游标（搜索或评论页，视 stage 而定）",
+        description="搜索分页下一页游标（仅 stage=search 时有效）；评论分页请用 comment_cursor",
+    )
+    comment_cursor: str | None = Field(
+        default=None,
+        description="评论分页下一页游标；与 pending_post_id 联用表示同帖续拉",
+    )
+    pending_post_id: str | None = Field(
+        default=None,
+        description="尚未拉完评论的帖子 ID；存在时 Runner 从该帖继续 fetch_comments",
     )
     last_post_id: str | None = Field(
         default=None,
-        description="fetch_comments 下已完整处理完的帖子 ID；恢复时从此帖之后继续",
+        description="已完整处理完的帖子 ID；无 pending 时恢复会跳过该帖（旧语义保留）",
     )
     processed_count: int = Field(default=0, ge=0, description="已处理评论事件条数（累计）")
     failed_count: int = Field(default=0, ge=0, description="平台调用失败次数（累计）")
     updated_at: datetime = Field(default_factory=_utc_now, description="UTC 更新时间")
     last_error: str | None = Field(default=None, description="最近一次错误摘要")
+
+    @model_validator(mode="after")
+    def _migrate_legacy_fetch_comments_cursor(self) -> JobCheckpoint:
+        """旧版将评论下一页游标写在 ``cursor``；迁移到 ``comment_cursor`` + ``pending_post_id``。"""
+        if self.pending_post_id is not None or self.comment_cursor is not None:
+            return self
+        if self.stage != CheckpointStage.FETCH_COMMENTS:
+            return self
+        if self.cursor and self.last_post_id:
+            return self.model_copy(
+                update={
+                    "comment_cursor": self.cursor,
+                    "pending_post_id": self.last_post_id,
+                    "cursor": None,
+                }
+            )
+        return self
 
 
 @runtime_checkable

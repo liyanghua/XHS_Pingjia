@@ -41,6 +41,8 @@ async def test_collection_run_summary_has_stable_counts() -> None:
         "cleaned_count",
         "stored_raw_count",
         "stored_normalized_count",
+        "retry_count",
+        "failed_count",
     ):
         assert key in d
     assert summary.last_error is None

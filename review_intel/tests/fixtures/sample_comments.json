@@ -26,6 +26,11 @@
       "id": "snip_ad",
       "review_text": "加我微信了解详情",
       "note": "应被过滤：广告词"
+    },
+    {
+      "id": "snip_high_value_short",
+      "review_text": "好穿",
+      "note": "过短但命中高价值短词：配合 high_value_short_terms 应保留"
     }
   ],
   "raw_event_overrides": {

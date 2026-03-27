@@ -4,7 +4,7 @@
 # This file is part of MediaCrawler project.
 # Licensed under NON-COMMERCIAL LEARNING LICENSE 1.1
 
-"""基于规则的评论文本过滤：空、过短、纯符号/表情、明显广告。"""
+"""基于规则的评论文本过滤：空、过短、纯符号/表情、明显广告；可选高价值短词豁免。"""
 
 from __future__ import annotations
 
@@ -58,19 +58,39 @@ def contains_ad_keywords(text: str, keywords: FrozenSet[str] | set[str] | None =
     return any(k.lower() in lower for k in kws)
 
 
+def hits_high_value_short_term(text: str, terms: FrozenSet[str]) -> bool:
+    """正文是否命中任一高价值短词（子串匹配，与广告词风格一致）。"""
+    if not terms:
+        return False
+    s = text.strip()
+    if not s:
+        return False
+    lower = s.lower()
+    return any(t.lower() in lower for t in terms)
+
+
 def should_keep_review_text(
     text: str,
     *,
     min_len: int = 4,
     ad_keywords: FrozenSet[str] | set[str] | None = None,
+    high_value_short_terms: FrozenSet[str] | None = None,
 ) -> bool:
-    """综合过滤：保留返回 True。"""
+    """综合过滤：保留返回 True。
+
+    顺序：空 → 纯表情/符号 → 广告 → 过短（若提供 ``high_value_short_terms`` 且命中则豁免长度）。
+
+    ``high_value_short_terms`` 为 ``None`` 或空集时不做短评豁免（与旧行为兼容）。
+    """
     if is_empty_text(text):
-        return False
-    if is_too_short(text, min_len=min_len):
         return False
     if is_pure_emoji_or_symbols(text):
         return False
     if contains_ad_keywords(text, keywords=ad_keywords):
+        return False
+    hv = high_value_short_terms if high_value_short_terms is not None else frozenset()
+    if is_too_short(text, min_len=min_len):
+        if hv and hits_high_value_short_term(text, hv):
+            return True
         return False
     return True

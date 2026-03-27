@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 
 from review_intel.adapters.dummy import DummyAdapter
-from review_intel.jobs.models import example_job_womens_sun_protection_painpoint
+from review_intel.jobs.models import CollectionRunLimits, example_job_womens_sun_protection_painpoint
 from review_intel.jobs.runner import ReviewCollectionRunner
 from review_intel.storage.sqlite_support import open_review_intel_stores
 
@@ -83,3 +83,20 @@ async def test_second_run_does_not_increase_stored_counts() -> None:
     assert second.fetched_count == 2
     assert second.stored_raw_count == 0
     assert second.stored_normalized_count == 0
+
+
+@pytest.mark.asyncio
+async def test_max_posts_limits_to_one_post_dummy() -> None:
+    """仅处理 1 个帖子 → 仅 1 条评论事件（Dummy 每帖 1 条）。"""
+    job = example_job_womens_sun_protection_painpoint()
+    limits = CollectionRunLimits(max_posts=1)
+    with tempfile.TemporaryDirectory() as tmp:
+        db_path = Path(tmp) / "ri.db"
+        raw_store, norm_store = open_review_intel_stores(db_path)
+        summary = await ReviewCollectionRunner().run(
+            job, DummyAdapter(), raw_store, norm_store, limits=limits
+        )
+
+    assert summary.fetched_count == 1
+    assert summary.posts_selected == 1
+    assert summary.limits.max_posts == 1

@@ -20,6 +20,42 @@ from pydantic import BaseModel, Field, field_validator
 from review_intel.schemas.enums import JobStatus, PlatformType
 
 
+class CollectionRunLimits(BaseModel):
+    """``ReviewCollectionRunner`` 通用调度边界（与具体平台无关）。
+
+    默认值与旧版 Runner 行为一致：单页搜索、每帖单页评论、不截断帖子数与评论条数。
+    """
+
+    max_search_pages: int = Field(
+        default=1,
+        ge=1,
+        description="搜索分页最多拉取页数",
+    )
+    max_posts: int | None = Field(
+        default=None,
+        description="合并多页搜索结果后最多处理多少个帖子；None 表示不截断",
+    )
+    max_comment_pages_per_post: int | None = Field(
+        default=1,
+        description="每帖评论分页最多拉取页数；None 表示直到无下一页",
+    )
+    max_comments_per_post: int | None = Field(
+        default=None,
+        description="每帖累计最多多少条顶层评论事件（跨页累加）；None 表示不截断",
+    )
+    enable_replies: bool = Field(
+        default=False,
+        description="是否在每条顶层评论上继续拉取 fetch_replies（与 max_comments_per_post 共用配额）",
+    )
+
+    @field_validator("max_posts", "max_comment_pages_per_post", "max_comments_per_post")
+    @classmethod
+    def _positive_when_set(cls, v: int | None) -> int | None:
+        if v is not None and v < 1:
+            raise ValueError("must be >= 1 when set")
+        return v
+
+
 def _utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
@@ -126,6 +162,33 @@ def create_job_from_dict(data: dict[str, Any]) -> CollectionJob:
         pydantic.ValidationError: 字段不合法时。
     """
     return CollectionJob.model_validate(data)
+
+
+def example_job_xhs_acceptance_womens_sun_painpoint() -> CollectionJob:
+    """小红书第一轮真实验收：女装 / 防晒衣 / 痛点检索（与 Runner 小范围 limits 联用）。"""
+    tw = TimeWindow(label="last_30d")
+    spec = QuerySpec(
+        industry="女装",
+        category="防晒衣",
+        brand=None,
+        intent=QueryIntent.PAINPOINT_SEARCH,
+        terms=["闷热", "假滑", "搓泥"],
+        negative_terms=["广告"],
+        time_window=tw,
+        platforms=[PlatformType.XHS],
+    )
+    return CollectionJob(
+        job_id="job-xhs-acceptance-womens-sun-painpoint",
+        industry="女装",
+        category="防晒衣",
+        brand=None,
+        query_spec=spec,
+        target_types=["post", "comment"],
+        priority=0,
+        freshness_level=FreshnessLevel.NORMAL,
+        status=JobStatus.PENDING,
+        owner="xhs-acceptance",
+    )
 
 
 def example_job_womens_sun_protection_painpoint() -> CollectionJob:
